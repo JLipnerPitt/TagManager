@@ -2,32 +2,56 @@ import os
 import tkinter as tk
 import shutil
 from tkinter import filedialog
+from tkinter import ttk
 from PIL import Image, ImageTk
 
 
 class TagManager:
     def __init__(self):
-        self.directory = None
+        self.directory = None  # main dataset location
+        self.img_directory = None  # created folder location to store only images from dataset
+        self.txt_directory = None  # created folder location to store only txt files from dataset
 
-    def setDirectory(self, dir):
+    def set_directory(self, dir):
         self.directory = dir
 
-    def getDirectory(self):
+    def get_main_directory(self):
         return self.directory
 
-    def create_folder(self, directory, folder_name):
+    def get_img_directory(self):
+        return self.img_directory
+
+    def get_txt_directory(self):
+        return self.txt_directory
+
+    def create_folder(self, folder_name, directory=None):
+        if directory is None:
+            directory = self.directory
+
         folder_path = os.path.join(directory, folder_name)  # joins creates directory/folder_name path
         if os.path.exists(folder_path):
             shutil.rmtree(folder_path)  # delete folder if it already exists
-        os.makedirs(folder_path)  # create folder since it doesn't exist
+        os.makedirs(folder_path)  # creates folder in specified directory
         return folder_path
 
-    def remove_tag_button(self):
-        root = tk.Tk()
-        # The command parameter is used to specify the function that will be called when the button is clicked
-        button = tk.Button(root, text="Remove tags?", command=self.tag_remover)
-        button.pack()
-        root.mainloop()
+    def separate_images(self):
+        images_path = self.create_folder("dataset_images")
+        for filename in os.listdir(self.directory):  # checks each file in directory
+            if filename.endswith(".jpg"):
+                imgfile = os.path.join(self.directory, filename)
+                shutil.copy(imgfile, images_path)
+
+        self.img_directory = images_path
+
+
+    def separate_txt_files(self):
+        txt_path = self.create_folder("dataset_tags")
+        for filename in os.listdir(self.directory):  # checks each file in directory
+            if filename.endswith(".txt"):
+                txtfile = os.path.join(self.directory, filename)
+                shutil.copy(txtfile, txt_path)
+
+        self.txt_directory = txt_path
 
     def tag_searcher(self, tag, choice=None, folder_name=None):
         #  creates folder located in the datasets path
@@ -36,10 +60,9 @@ class TagManager:
         else:
             directory2 = self.create_folder(os.path.dirname(self.directory), folder_name)
 
-        if choice is None:
+        if choice is None:  # searches for txt files with tag by default
             choice = "with"
 
-        count = 0
         if choice == "without":
             condition = lambda x: tag not in x
             message = "without"
@@ -47,6 +70,7 @@ class TagManager:
             condition = lambda x: tag in x
             message = "with"
 
+        count = 0
         for filename in os.listdir(self.directory):
             if filename.endswith(".txt"):  # Ensure we're only looking at .txt files
                 with open(os.path.join(self.directory, filename), 'r') as file:
@@ -74,7 +98,7 @@ class TagManager:
                     count += 1
         print("You added the '{}' tag to {} txt files.".format(new_tag, count))
 
-    def activation_tag(self, act_tag, search_dir=None):
+    def activation_tag(self, act_tag):
         count = 0
         for filename in os.listdir(self.directory):
             if filename.endswith(".txt"):
@@ -133,18 +157,34 @@ class TagManager:
                         with open(os.path.join(search_dir, filename), 'w') as file:
                             file.write(contents)
 
+    def upscale(self):
+        pass
+        #  check for folder with only images
+           #  if folder doesn't exist, create it, and make a copy
+           #  else check size of each image in folder
+              #  if img width or height is < 2000 pixels, upscale
+
+        # after all images have been upscaled, show old and upscaled image side by side
+        # if satisfied with upscaled image results, overwrite that image in the main folder
+
 
 class Interface:
     def __init__(self):
         self.folder = "Select Folder"
-        self.root = tk.Tk()
+        self.root = tk.Tk()  # main parent window
         self.root.title("Tag Manager")
-        self.tm = TagManager()
+        self.root.geometry('1080x1920')
+        self.image_window = tk.PhotoImage(file='')
+        self.tm = TagManager()  # for calling tagmanager functions
+        self.widgets()
+        self.root.mainloop()
+
+    def widgets(self):
         self.select_folder_widget()
         self.tag_search_widget()
         self.add_tag_widget()
         self.remove_tag_widget()
-        self.root.mainloop()
+        self.image_widget()
 
     def select_directory(self):
         dir = filedialog.askdirectory()
@@ -152,65 +192,86 @@ class Interface:
             return
         self.directory_frame.configure(text=dir)  # updates the text label on the directory frame
         self.tm.setDirectory(dir)
+        self.image_window = self.tm.getDirectory()
 
 
     def select_folder_widget(self):
         # Create frames for each functionality
-        self.directory_frame = tk.LabelFrame(self.root, text="Select Folder")
-        self.directory_frame.pack(padx=10, pady=10, fill=tk.X)
-
+        self.directory_frame = ttk.LabelFrame(self.root, text="Select Folder", width=25, height=25)
+        self.directory_frame.grid(row=0, column=0)
+        self.directory_frame.grid_propagate(False)
+        self.directory_frame.pack(padx=10, pady=10)
+        self.directory_frame.place(x=0, y=0)
         # Select Directory
-        self.search_button = tk.Button(self.directory_frame, text="Search",
+        style = ttk.Style()
+        style.configure("BW.TLabel", foreground="black", background="white")
+        self.search_button = ttk.Button(self.directory_frame, text="Search", width=15,
                                        command=lambda: self.select_directory())
-        self.search_button.pack(pady=5)
+        self.search_button.pack(padx=4, pady=4)
+        #self.search_button.place(x=0, y=0)
 
     def tag_search_widget(self):
-        self.tag_search_frame = tk.LabelFrame(self.root, text="Tag Searcher")
-        self.tag_search_frame.pack(padx=10, pady=10, fill=tk.X)
-        self.on_radio_change()
+        self.tag_search_frame = ttk.LabelFrame(self.root, text="Tag Searcher")
+        self.tag_search_frame.pack(padx=10, pady=10)
+        self.tag_search_frame.place(x=0, y=55)
 
         # Tag Searcher
-        self.search_entry1 = tk.Entry(self.tag_search_frame)
+        self.search_entry1 = ttk.Entry(self.tag_search_frame)
         self.search_entry1.pack(padx=10, pady=5)
 
-        self.search_button = tk.Button(self.root, text="Search",
+        self.search_button = ttk.Button(self.tag_search_frame, text="Search",
                                        command=lambda: self.tm.tag_searcher(self.search_entry1.get(), self.radio_var.get()))
         self.search_button.pack(pady=5)
 
+        self.radio_var = tk.StringVar(value="with") # shows neither being clicked
+        self.with_radio = ttk.Radiobutton(self.tag_search_frame, text="with", variable=self.radio_var, value="with")
+        self.without_radio = ttk.Radiobutton(self.tag_search_frame, text="without", variable=self.radio_var, value="without")
+        self.with_radio.pack(pady=10) # displays the actual clickable button for with
+        self.without_radio.pack(pady=10)
+
     def add_tag_widget(self):
-        self.tag_add_frame = tk.LabelFrame(self.root, text="Add Tags")
-        self.tag_add_frame.pack(padx=10, pady=10, fill=tk.X)
+        self.add_tag_frame = ttk.LabelFrame(self.root, text="Add Tags")
+        self.add_tag_frame.pack(padx=10, pady=10)
+        self.add_tag_frame.place(x=0, y=235)
 
         # Tag Adder
-        self.add_entry = tk.Entry(self.tag_add_frame)
+        self.add_entry = ttk.Entry(self.add_tag_frame)
         self.add_entry.pack(padx=10, pady=5)
-        self.add_button = tk.Button(self.tag_add_frame, text="Add Tag",
+        self.add_button = ttk.Button(self.add_tag_frame, text="Add Tag",
                                     command=lambda: self.tm.tag_adder(self.add_entry.get()))
         self.add_button.pack(pady=5)
 
         # Add Activation Tag
-        self.add_activation = tk.Entry(self.tag_add_frame)
+        self.add_activation = ttk.Entry(self.add_tag_frame)
         self.add_activation.pack(padx=10, pady=5)
-        self.add_acti_button = tk.Button(self.tag_add_frame, text="Add Activation Tag",
+        self.add_acti_button = ttk.Button(self.add_tag_frame, text="Add Activation Tag",
                                     command=lambda: self.tm.activation_tag(self.add_activation.get()))
-        self.add_button.pack(pady=5)
+        self.add_acti_button.pack(pady=5)
 
     def remove_tag_widget(self):
-        self.tag_remove_frame = tk.LabelFrame(self.root, text="Remove Tags")
-        self.tag_remove_frame.pack(padx=10, pady=10, fill=tk.X)
+        self.tag_remove_frame = ttk.LabelFrame(self.root, text="Remove Tags")
+        self.tag_remove_frame.pack(padx=10, pady=10)
+        self.tag_remove_frame.place(x=0, y=390)
 
         # Tag Remover
-        self.remove_entry = tk.Entry(self.tag_remove_frame)
+        self.remove_entry = ttk.Entry(self.tag_remove_frame)
         self.remove_entry.pack(padx=10, pady=5)
-        self.remove_button = tk.Button(self.tag_remove_frame, text="Remove",
+        self.remove_button = ttk.Button(self.tag_remove_frame, text="Remove",
                                        command=lambda: self.tm.tag_remover(self.remove_entry.get()))
         self.remove_button.pack(pady=5)
 
-    def on_radio_change(self):
-        self.radio_var = tk.StringVar(value="with") # shows neither being clicked
-        with_radio = tk.Radiobutton(self.root, text="with", variable=self.radio_var, value="with")
-        without_radio = tk.Radiobutton(self.root, text="without", variable=self.radio_var, value="without")
-        with_radio.pack(pady=10) # displays the actual clickable button for with
-        without_radio.pack(pady=10)
+    def image_widget(self):
+        self.image_frame = ttk.LabelFrame(self.root, text="Image")
+        self.image_frame.pack(padx=25, pady=25)
+        self.image_frame.place(x=500, y=250)
 
-gui = Interface()
+    def upscale_widget(self):
+        pass
+
+
+#gui = Interface()
+tm = TagManager()
+tm.set_directory(filedialog.askdirectory())
+tm.separate_images()
+tm.separate_txt_files()
+
