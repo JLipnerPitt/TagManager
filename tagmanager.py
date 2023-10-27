@@ -1,6 +1,7 @@
 import os
 import tkinter as tk
 import shutil
+import cv2
 from tkinter import filedialog
 from tkinter import ttk
 from PIL import Image, ImageTk
@@ -149,7 +150,7 @@ class TagManager:
                         contents = old_file.read()
                     old_contents = contents
                     for tag in rem_tag:
-                        if contents.find(tag) == False:
+                        if not contents.find(tag):
                             continue
                         contents = contents.replace(", " + tag, "")  # try to replace old tag with new tag
 
@@ -157,10 +158,53 @@ class TagManager:
                         with open(os.path.join(search_dir, filename), 'w') as file:
                             file.write(contents)
 
+    def convert_image_type(self, old, new, path=None):
+        if path is None:
+            path = self.directory
+
+        files = os.listdir(path)
+        images = []
+        [images.append(file) for file in files if file.endswith(old)]
+
+        for img in images:
+            if os.path.exists(os.path.join(path, img.replace(old, new))):
+                continue
+            os.rename(os.path.join(path, img), os.path.join(path, img.replace(old, new)))
+
+    def rename_txt_and_img_pairs(self, path=None):
+        if path is None:
+            path = self.directory
+
+        files = os.listdir(path)  # stores all files in directory
+        txt_files = []  # stores all txt paths
+        jpg_files = []  # stores all jpg paths
+
+        [txt_files.append(file) for file in files if file.endswith(".txt")]
+        [jpg_files.append(file) for file in files if file.endswith(".jpg")]
+
+        #  sorting txt and jpg files numerically
+        txt_files = sorted(txt_files, key=lambda f: int(f.split(".")[0]))
+        jpg_files = sorted(jpg_files, key=lambda f: int(f.split(".")[0]))
+        n = int(len(files)/2)  # number of txt and jpg files are the same
+
+        #  renaming txt and jpg files
+        for i in range(n):
+            if os.path.exists(os.path.join(path, "{}.jpg".format(i+1))) == True:
+                i += 1
+                continue
+            os.rename(os.path.join(path, jpg_files[i]), os.path.join(path, "{}.jpg".format(i+1)))
+            os.rename(os.path.join(path, txt_files[i]), os.path.join(path, "{}.txt".format(i+1)))
+
     def upscale(self):
-        pass
-        #  check for folder with only images
-           #  if folder doesn't exist, create it, and make a copy
+        if self.img_directory is None:
+            self.create_folder("dataset_images")
+
+        for img in self.img_directory:
+            im = cv2.imread(img)
+            if im[0] or img[1] < 2000:
+                pass
+
+        #  if folder doesn't exist, create it, and make a copy
            #  else check size of each image in folder
               #  if img width or height is < 2000 pixels, upscale
 
